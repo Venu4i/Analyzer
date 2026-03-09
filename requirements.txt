@@ -1,0 +1,23 @@
+# Web Framework
+fastapi==0.109.0
+uvicorn==0.27.0
+python-multipart==0.0.6
+
+# PDF Processing
+pymupdf==1.23.8
+langchain-text-splitters>=1.1.1
+
+# AI & Vector Database
+langchain==0.1.0
+langchain-openai==0.0.2
+langchain-community==0.0.10
+faiss-cpu==1.7.4
+tiktoken==0.5.2
+sentence-transformers
+
+# Environment & Utilities
+python-dotenv==1.0.0
+requests==2.31.0
+
+# Frontend (For your teammate later)
+streamlit==1.30.0

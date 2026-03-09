@@ -1,0 +1,29 @@
+# Python virtual environment
+venv/
+.venv/
+env/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables (CRITICAL: Never share your API keys)
+.env
+
+# Data and Vector Store (Keep your repo light)
+data/uploads/*
+data/index/*
+!data/uploads/.gitkeep
+!data/index/.gitkeep
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# IDE settings
+.vscode/
+.idea/
+
+# Research papers (Don't upload personal PDFs)
+*.pdf
