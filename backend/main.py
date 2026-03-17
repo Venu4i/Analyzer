@@ -3,7 +3,7 @@ import shutil
 import uvicorn
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from backend.engine import get_cited_answer
+from engine import get_cited_answer
 from dotenv import load_dotenv
 
 from parser import smart_parse_pdf

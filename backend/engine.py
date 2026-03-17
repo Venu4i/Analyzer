@@ -6,10 +6,18 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.core import StorageContext, VectorStoreIndex, ServiceContext
 from llama_index.vector_stores.faiss import FaissVectorStore
 from llama_index.core.query_engine import CitationQueryEngine
+from dotenv import load_dotenv
 
-# 1. Setup Gemini & Embedding Model
-# We must use the same embedding model your teammates used: 'all-MiniLM-L6-v2'
-llm = GoogleGenAI(model="models/gemini-2.5-pro")
+load_dotenv()
+
+# Get the API key from environment
+api_key = os.getenv("GOOGLE_API_KEY")
+
+if not api_key:
+    raise ValueError("GOOGLE_API_KEY not found in .env file!")
+
+# Initialize the LLM with the explicit key
+llm = GoogleGenAI(model="models/gemini-2.5-pro", api_key=api_key)
 embed_model = HuggingFaceEmbedding(model_name="all-MiniLM-L6-v2")
 
 def get_cited_answer(query: str, doc_name: str):
