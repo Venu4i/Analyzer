@@ -3,6 +3,7 @@ import shutil
 import uvicorn
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from backend.engine import get_cited_answer
 from dotenv import load_dotenv
 
 from parser import smart_parse_pdf
@@ -82,6 +83,19 @@ async def ask_question(query: str, doc_name: str):
         return {"query": query, "matches": results}
     except Exception as e:
         raise HTTPException(status_code=404, detail="Index not found or search failed.")
+
+
+@app.get("/analyze")
+async def analyze(query: str, doc_name: str):
+    """
+    The endpoint your Streamlit frontend will call.
+    Example: /analyze?query=What is the result?&doc_name=faiss_research
+    """
+    result = get_cited_answer(query, doc_name)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
