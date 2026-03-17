@@ -1,6 +1,7 @@
 import os
 import shutil
 import uvicorn
+import re  # Added for filename cleaning
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from engine import get_cited_answer
@@ -27,27 +28,29 @@ async def upload_pdf(file: UploadFile = File(...)):
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
 
-    safe_filename = file.filename.replace(" ", "_")
-    file_path = os.path.join(UPLOAD_DIR, safe_filename)
+    # 1. Clean filename
+    clean_filename = re.sub(r'[^a-zA-Z0-9.]', '_', file.filename)
+    
+    # Ensure .pdf is at the end (logic for safety)
+    if not clean_filename.endswith(".pdf"):
+        clean_filename += ".pdf"
+
+    file_path = os.path.join(UPLOAD_DIR, clean_filename)
     
     try:
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # 1. Parse & Chunk
         raw_data = smart_parse_pdf(file_path)
         final_chunks = create_text_chunks(raw_data)
         
-        # 2. Vectorize and save to FAISS
-        # We use the filename as the index name so you can have multiple docs
-        index_success = vectorize_and_save(final_chunks, index_name=safe_filename)
+        index_success = vectorize_and_save(final_chunks, index_name=clean_filename)
 
-        # 3. Cleanup PDF
         if os.path.exists(file_path):
             os.remove(file_path)
 
         return {
-            "filename": safe_filename,
+            "filename": clean_filename,
             "status": "Success",
             "vectorized": index_success,
             "total_chunks": len(final_chunks)
@@ -60,42 +63,48 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 @app.get("/ask")
 async def ask_question(query: str, doc_name: str):
-    """
-    New Route: Query the FAISS index with a user question
-    """
     try:
-        from processor import model # Import model for query embedding
+        from processor import model 
         import faiss
         import pickle
 
-        # 1. Load the specific index and metadata
-        index = faiss.read_index(f"vector_store/{doc_name}.index")
-        with open(f"vector_store/{doc_name}.pkl", "rb") as f:
+        # 1. Clean name and ensure .pdf is present
+        clean_doc = re.sub(r'[^a-zA-Z0-9.]', '_', doc_name)
+        if not clean_doc.endswith(".pdf"):
+            clean_doc += ".pdf"
+        
+        index_path = f"vector_store/{clean_doc}.index"
+        pkl_path = f"vector_store/{clean_doc}.pkl"
+
+        if not os.path.exists(index_path):
+            raise FileNotFoundError(f"Could not find index file: {index_path}")
+
+        index = faiss.read_index(index_path)
+        with open(pkl_path, "rb") as f:
             chunks = pickle.load(f) 
             
-        # 2. Embed the user's question
         query_vector = model.encode([query]).astype('float32')
-        
-        # 3. Search for top 3 matches
         D, I = index.search(query_vector, k=3)
-        
         results = [chunks[i] for i in I[0]]
+        
         return {"query": query, "matches": results}
     except Exception as e:
-        raise HTTPException(status_code=404, detail="Index not found or search failed.")
-
+        print(f"Ask Error: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
 
 @app.get("/analyze")
 async def analyze(query: str, doc_name: str):
-    """
-    The endpoint your Streamlit frontend will call.
-    Example: /analyze?query=What is the result?&doc_name=faiss_research
-    """
-    result = get_cited_answer(query, doc_name)
-    if "error" in result:
-        raise HTTPException(status_code=404, detail=result["error"])
-    return result
+    try:
+        result = get_cited_answer(query, doc_name)
 
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+
+        return result
+
+    except Exception as e:
+        print(f"Analyze Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
