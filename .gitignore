@@ -10,7 +10,7 @@ __pycache__/
 
 # Environment variables (CRITICAL: Never share your API keys)
 .env
-
+users.json
 # Data and Vector Store (Keep your repo light)
 data/uploads/*
 data/index/*

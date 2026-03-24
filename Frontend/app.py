@@ -4,6 +4,23 @@ import requests
 # 1. PAGE SETUP
 st.set_page_config(page_title="AI Research Assistant", layout="wide")
 
+hide_pages = """
+<style>
+[data-testid="stSidebarNav"] {
+    display: none;
+}
+</style>
+"""
+st.markdown(hide_pages, unsafe_allow_html=True)
+
+if "auth" in st.query_params and st.query_params["auth"] == "true":
+    st.session_state.logged_in = True
+
+if "logged_in" not in st.session_state or not st.session_state.logged_in:
+    st.switch_page("pages/login.py")
+
+import requests
+
 if "doc_name" not in st.session_state:
     st.session_state.doc_name = None
 if "messages" not in st.session_state:
@@ -29,6 +46,11 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Connection Error: {e}")
 
+    st.markdown("---")
+    if st.button("Logout"):
+        st.session_state.clear()
+        st.query_params.clear()
+        st.switch_page("pages/login.py")
 # 3. MAIN CHAT AREA
 st.title("🔬 AI Research Assistant")
 st.markdown("---")
