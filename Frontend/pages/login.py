@@ -45,22 +45,19 @@ if "logged_in" not in st.session_state:
 username = st.text_input("Username")
 password = st.text_input("Password", type="password")
 
+
 if st.button("Login"):
     if username in users and users[username] == password:
         st.session_state.logged_in = True
         st.session_state.username = username
+        
+        # Persist login in URL
+        st.query_params["auth"] = "true"
+        
         st.success("Login successful 🎉")
-        st.switch_page("app.py")  # redirect to home
+        st.switch_page("app.py")
     else:
         st.error("Invalid credentials")
-
-st.session_state.logged_in = True
-st.session_state.username = username
-
-# ✅ Persist login in URL
-st.query_params["auth"] = "true"
-
-st.switch_page("app.py")
 
 st.markdown("---")
 st.write("Don't have an account?")

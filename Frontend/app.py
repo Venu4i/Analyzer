@@ -48,8 +48,8 @@ with st.sidebar:
 
     st.markdown("---")
     if st.button("Logout"):
-        st.session_state.clear()
         st.query_params.clear()
+        st.session_state.clear()
         st.switch_page("pages/login.py")
 # 3. MAIN CHAT AREA
 st.title("🔬 AI Research Assistant")
