@@ -13,7 +13,7 @@ load_dotenv()
 
 # Gemini setup
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-llm_qa = genai.GenerativeModel("gemini-2.5-pro")     # Best for precise Q&A
+llm_qa = genai.GenerativeModel("gemini-2.5-flash")     # Best for precise Q&A
 llm_sum = genai.GenerativeModel("gemini-2.5-flash")  # Best for massive text chunks
 
 def get_cited_answer(query: str, doc_name: str):
@@ -36,7 +36,7 @@ def get_cited_answer(query: str, doc_name: str):
 
         # Vector Search
         query_vector = model.encode([query]).astype('float32')
-        D, I = index.search(query_vector, k=5) # Top 5 chunks
+        D, I = index.search(query_vector, k=3) # Top 3 chunks
 
         results = [chunks[i] for i in I[0] if i < len(chunks)]
         if not results:
