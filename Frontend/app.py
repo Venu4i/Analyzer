@@ -6,46 +6,52 @@ st.set_page_config(page_title="AI Research Assistant", layout="wide")
 
 hide_pages = """
 <style>
-[data-testid="stSidebarNav"] {
-    display: none;
-}
+[data-testid="stSidebarNav"] { display: none; }
 </style>
 """
 st.markdown(hide_pages, unsafe_allow_html=True)
 
-if "auth" in st.query_params and st.query_params["auth"] == "true":
-    st.session_state.logged_in = True
+if "doc_name" not in st.session_state: st.session_state.doc_name = None
+if "messages" not in st.session_state: st.session_state.messages = []
 
-if "logged_in" not in st.session_state or not st.session_state.logged_in:
-    st.switch_page("pages/login.py")
-
-import requests
-
-if "doc_name" not in st.session_state:
-    st.session_state.doc_name = None
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# 2. SIDEBAR (File Upload)
+# 2. SIDEBAR (File Upload & Global Summary)
 with st.sidebar:
     st.title("📁 Document Upload")
     uploaded_file = st.file_uploader("Upload a Research Paper (PDF)", type="pdf")
 
     if uploaded_file and st.button("Process Document"):
-        with st.spinner("Indexing your paper..."):
-            # Sends file to the Backend /upload
+        with st.spinner("Indexing and Generating Summary... This takes ~15 seconds."):
             files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf")}
             try:
                 response = requests.post("http://127.0.0.1:8000/upload", files=files)
                 if response.status_code == 200:
                     data = response.json()
                     st.session_state.doc_name = data.get("filename")
+                    st.session_state.messages = [] # Clear old chat on new upload
                     st.success(f"Successfully indexed: {st.session_state.doc_name}")
                 else:
                     st.error(f"Upload Failed: {response.text}")
             except Exception as e:
                 st.error(f"Connection Error: {e}")
 
+    st.markdown("---")
+    
+    # NEW: Dedicated button for fetching the pre-computed summary
+    if st.session_state.doc_name:
+        if st.button("📝 Fetch Full Paper Summary"):
+            with st.spinner("Retrieving summary..."):
+                try:
+                    res = requests.get(f"http://127.0.0.1:8000/get-summary?doc_name={st.session_state.doc_name}")
+                    if res.status_code == 200:
+                        summary_text = res.json().get("summary")
+                        # Add summary to chat history as an assistant message
+                        st.session_state.messages.append({"role": "assistant", "content": f"**Full Paper Summary:**\n\n{summary_text}"})
+                        st.rerun()
+                    else:
+                        st.error("Summary not found. Please re-upload.")
+                except Exception as e:
+                    st.error(f"Error fetching summary: {e}")
+                    
     st.markdown("---")
     if st.button("Logout"):
         st.query_params.clear()
@@ -59,21 +65,17 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# 4. CHAT INPUT (Connects to YOUR LlamaIndex Engine)
-if prompt := st.chat_input("Ask a question about the PDF..."):
+# 4. CHAT INPUT (Specific Q&A)
+if prompt := st.chat_input("Ask a specific question about the PDF..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     if st.session_state.doc_name:
         with st.chat_message("assistant"):
-            with st.spinner("Gemini is analyzing..."):
+            with st.spinner("Gemini is analyzing specific sections..."):
                 try:
-                    # CRITICAL CHANGE: We now call /analyze (Your Engine)
-                    params = {
-                        "query": prompt, 
-                        "doc_name": st.session_state.doc_name
-                    }
+                    params = {"query": prompt, "doc_name": st.session_state.doc_name}
                     response = requests.get("http://127.0.0.1:8000/analyze", params=params)
                     
                     if response.status_code == 200:
@@ -81,10 +83,8 @@ if prompt := st.chat_input("Ask a question about the PDF..."):
                         answer = data.get("answer")
                         citations = data.get("citations", [])
                         
-                        # Display the AI's smart answer
                         st.markdown(answer)
                         
-                        # Professional Citation Dropdown
                         if citations:
                             with st.expander("📚 View Sources & Citations"):
                                 for i, cite in enumerate(citations):
