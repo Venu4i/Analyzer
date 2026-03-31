@@ -11,6 +11,8 @@ hide_pages = """
 """
 st.markdown(hide_pages, unsafe_allow_html=True)
 
+if "user_id" not in st.session_state:
+    st.session_state.user_id = None 
 if "doc_name" not in st.session_state: st.session_state.doc_name = None
 if "messages" not in st.session_state: st.session_state.messages = []
 
@@ -22,8 +24,16 @@ with st.sidebar:
     if uploaded_file and st.button("Process Document"):
         with st.spinner("Indexing and Generating Summary... This takes ~15 seconds."):
             files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf")}
+            
+            # --- THE FIX IS HERE ---
+            # We attach the user_id from the login session to the request parameters
+            params = {"user_id": st.session_state.user_id} 
+            print(f"DEBUG: Uploading with params: {params} and file: {uploaded_file.name}")
+            
             try:
-                response = requests.post("http://127.0.0.1:8000/upload", files=files)
+                # Add params=params to the post request!
+                response = requests.post("http://127.0.0.1:8000/upload", params=params, files=files)
+                
                 if response.status_code == 200:
                     data = response.json()
                     st.session_state.doc_name = data.get("filename")
@@ -33,7 +43,6 @@ with st.sidebar:
                     st.error(f"Upload Failed: {response.text}")
             except Exception as e:
                 st.error(f"Connection Error: {e}")
-
     st.markdown("---")
     
     # NEW: Dedicated button for fetching the pre-computed summary
@@ -41,7 +50,8 @@ with st.sidebar:
         if st.button("📝 Fetch Full Paper Summary"):
             with st.spinner("Retrieving summary..."):
                 try:
-                    res = requests.get(f"http://127.0.0.1:8000/get-summary?doc_name={st.session_state.doc_name}")
+                    params = {"user_id": st.session_state.user_id}
+                    res = requests.get(f"http://127.0.0.1:8000/get-summary?doc_name={st.session_state.doc_name}", params = params)
                     if res.status_code == 200:
                         summary_text = res.json().get("summary")
                         # Add summary to chat history as an assistant message
@@ -75,7 +85,7 @@ if prompt := st.chat_input("Ask a specific question about the PDF..."):
         with st.chat_message("assistant"):
             with st.spinner("Gemini is analyzing specific sections..."):
                 try:
-                    params = {"query": prompt, "doc_name": st.session_state.doc_name}
+                    params = {"query": prompt, "doc_name": st.session_state.doc_name, "user_id": st.session_state.user_id}
                     response = requests.get("http://127.0.0.1:8000/analyze", params=params)
                     
                     if response.status_code == 200:

@@ -1,6 +1,5 @@
 import streamlit as st
-import json
-import os
+import requests
 
 st.set_page_config(page_title="AI Research Assistant", layout="wide")
 
@@ -27,36 +26,33 @@ hide_sidebar = """
 </style>
 """
 st.markdown(hide_sidebar, unsafe_allow_html=True)
-USER_DB = "users.json"
-
-
-def load_users():
-    if os.path.exists(USER_DB):
-        with open(USER_DB, "r") as f:
-            return json.load(f)
-    return {}
-
-
-def save_users(users):
-    with open(USER_DB, "w") as f:
-        json.dump(users, f)
-
 
 st.title("📝 Signup")
 
-users = load_users()
-
-new_user = st.text_input("Create Username")
+# Changed label to Email because FastAPI 'EmailStr' requires email format
+new_email = st.text_input("Create Email")
 new_pass = st.text_input("Create Password", type="password")
 
 if st.button("Signup"):
-    if new_user in users:
-        st.error("User already exists")
+    if new_email and new_pass:
+        try:
+            # Connect to your FastAPI backend
+            response = requests.post(
+                "http://127.0.0.1:8000/signup",
+                json={"email": new_email, "password": new_pass}
+            )
+            
+            if response.status_code == 200:
+                st.success("Account created successfully 🎉")
+                # Optional: You could automatically log them in here, but we'll stick to your flow
+            else:
+                # Show exact error from FastAPI (e.g. "Email already registered" or invalid format)
+                st.error(response.json().get("detail", "Signup failed"))
+                
+        except requests.exceptions.ConnectionError:
+            st.error("Connection error. Make sure your FastAPI backend is running!")
     else:
-        users[new_user] = new_pass
-        save_users(users)
-        st.success("Account created successfully 🎉")
-        st.switch_page("pages/login.py")
+        st.warning("Please enter both an email and password.")
 
 st.markdown("---")
 st.write("Already have an account?")

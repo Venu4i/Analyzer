@@ -16,19 +16,19 @@ genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 llm_qa = genai.GenerativeModel("gemini-2.5-flash")     # Best for precise Q&A
 llm_sum = genai.GenerativeModel("gemini-2.5-flash")  # Best for massive text chunks
 
-def get_cited_answer(query: str, doc_name: str):
+def get_cited_answer(query: str, doc_name: str, user_id: str): 
     """The 'Sniper': Uses FAISS to find exact chunks for Q&A."""
     try:
         clean_doc = re.sub(r'[^a-zA-Z0-9.]', '_', doc_name)
         if not clean_doc.endswith(".pdf"):
             clean_doc += ".pdf"
 
-        index_path = f"vector_store/{clean_doc}.index"
-        pkl_path = f"vector_store/{clean_doc}.pkl"
+        # --- THE FIX: Point FAISS to the specific user's folder ---
+        index_path = f"vector_store/{user_id}/{clean_doc}.index"
+        pkl_path = f"vector_store/{user_id}/{clean_doc}.pkl"
 
         if not os.path.exists(index_path) or not os.path.exists(pkl_path):
-            return {"error": f"Files not found: {clean_doc}"}
-
+            return {"error": f"Files not found for this user: {clean_doc}"}
         # Load FAISS & chunks
         index = faiss.read_index(index_path)
         with open(pkl_path, "rb") as f:

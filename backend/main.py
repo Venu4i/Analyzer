@@ -14,7 +14,6 @@ from engine import get_cited_answer
 from parser import smart_parse_pdf
 from engine import get_cited_answer, generate_global_summary
 from processor import create_text_chunks, vectorize_and_save, model
-from database import users_collection
 
 load_dotenv()
 app = FastAPI(title="Analyzer API")
@@ -31,25 +30,22 @@ UPLOAD_DIR = os.path.abspath("data/uploads")
 VECTOR_STORE_DIR = os.path.abspath("vector_store")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-
 from pymongo import MongoClient
 
 # 1. Connect to MongoDB
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db = client["Analyzer"]
 summaries_collection = db["summaries"]
+users_collection = db["users"]
 
-def save_summary(filename, summary_text):
-    """Saves or updates the summary in MongoDB."""
+def save_summary(filename: str, summary_text: str, user_id: str):
+    """Saves the summary in MongoDB linked to the specific user."""
     summaries_collection.update_one(
-        {"filename": filename},
+        {"filename": filename, "user_id": user_id}, 
         {"$set": {"summary": summary_text}},
-        upsert=True # Creates it if it doesn't exist, updates if it does
+        upsert=True 
     )
-
-@app.post("/upload")
-def upload_pdf(file: UploadFile = File(...)):
 
 # --- SCHEMAS ---
 class UserAuth(BaseModel):
@@ -59,32 +55,31 @@ class UserAuth(BaseModel):
 # --- AUTH CONTROLLERS ---
 
 @app.post("/signup")
-async def signup(user: UserAuth):
-    user_exists = await users_collection.find_one({"email": user.email})
+def signup(user: UserAuth):
+    user_exists = users_collection.find_one({"email": user.email})
     if user_exists:
         raise HTTPException(status_code=400, detail="Email already registered")
     
     # Store user (Recommended: Hash password in production)
-    result = await users_collection.insert_one(user.dict())
+    result =  users_collection.insert_one(user.dict())
     return {"status": "Success", "user_id": str(result.inserted_id)}
 
 @app.post("/login")
-async def login(user: UserAuth):
-    db_user = await users_collection.find_one({"email": user.email, "password": user.password})
+def login(user: UserAuth):
+    db_user =  users_collection.find_one({"email": user.email, "password": user.password})
     if not db_user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     return {"status": "Success", "user_id": str(db_user["_id"])}
 
 @app.post("/logout")
-async def logout(user_id: str):
-    # Optional: Log the logout event in MongoDB if you want to track sessions
+def logout(user_id: str):
     return {"status": "Success", "message": f"User {user_id} logged out locally."}
 
 # --- FILE & VECTOR CONTROLLERS ---
 
 @app.post("/upload")
-async def upload_pdf(user_id: str, file: UploadFile = File(...)):
+def upload_pdf(user_id: str, file: UploadFile = File(...)):
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files supported.")
 
@@ -106,10 +101,14 @@ async def upload_pdf(user_id: str, file: UploadFile = File(...)):
         final_chunks = create_text_chunks(raw_data)
         
         # Save index into vector_store/{user_id}/{filename}
+        index_success = vectorize_and_save(final_chunks, index_name=f"{user_id}/{clean_filename}")
 
         # Generate and save the global summary immediately upon upload
         summary_text = generate_global_summary(final_chunks)
-        save_summary(clean_filename, summary_text)
+        
+        # --- FIX 1: ADDED user_id TO THE FUNCTION CALL HERE ---
+        save_summary(clean_filename, summary_text, user_id)
+        
         return {
             "filename": clean_filename,
             "status": "Success",
@@ -122,7 +121,7 @@ async def upload_pdf(user_id: str, file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Upload Error: {str(e)}")
 
 @app.get("/ask")
-async def ask_question(query: str, doc_name: str, user_id: str):
+def ask_question(query: str, doc_name: str, user_id: str):
     try:
         clean_doc = re.sub(r'[^a-zA-Z0-9.]', '_', doc_name)
         if not clean_doc.endswith(".pdf"):
@@ -148,7 +147,7 @@ async def ask_question(query: str, doc_name: str, user_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/delete-file")
-async def delete_file(user_id: str, doc_name: str):
+def delete_file(user_id: str, doc_name: str):
     try:
         clean_doc = re.sub(r'[^a-zA-Z0-9.]', '_', doc_name)
         if not clean_doc.endswith(".pdf"):
@@ -171,15 +170,28 @@ async def delete_file(user_id: str, doc_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/analyze")
-async def analyze(query: str, doc_name: str, user_id: str):
+def analyze(query: str, doc_name: str, user_id: str):
     try:
-        # Pass user_id to engine if engine supports personalized paths
         result = get_cited_answer(query, doc_name, user_id=user_id)
         if "error" in result:
             raise HTTPException(status_code=500, detail=result["error"])
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- FIX 2: MOVED THIS ROUTE ABOVE THE MAIN BLOCK ---
+@app.get("/get-summary")
+def get_summary(doc_name: str, user_id: str):
+    clean_doc = re.sub(r'[^a-zA-Z0-9.]', '_', doc_name)
+    if not clean_doc.endswith(".pdf"): clean_doc += ".pdf"
+    
+    # Fetch from Mongo using BOTH filename and user_id
+    db_record = summaries_collection.find_one({"filename": clean_doc, "user_id": user_id})
+    
+    if db_record and "summary" in db_record:
+        return {"summary": db_record["summary"]}
+                
+    raise HTTPException(status_code=404, detail="Summary not found in Database.")
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))

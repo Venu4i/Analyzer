@@ -1,6 +1,5 @@
 import streamlit as st
-import json
-import os
+import requests
 
 st.set_page_config(page_title="AI Research Assistant", layout="wide")
 
@@ -27,37 +26,45 @@ hide_sidebar = """
 </style>
 """
 st.markdown(hide_sidebar, unsafe_allow_html=True)
-USER_DB = "users.json"
-
-def load_users():
-    if os.path.exists(USER_DB):
-        with open(USER_DB, "r") as f:
-            return json.load(f)
-    return {}
 
 st.title("🔐 Login")
-
-users = load_users()
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-username = st.text_input("Username")
+# Changed label to Email because FastAPI 'EmailStr' requires email format
+email = st.text_input("Email")
 password = st.text_input("Password", type="password")
 
-
 if st.button("Login"):
-    if username in users and users[username] == password:
-        st.session_state.logged_in = True
-        st.session_state.username = username
-        
-        # Persist login in URL
-        st.query_params["auth"] = "true"
-        
-        st.success("Login successful 🎉")
-        st.switch_page("app.py")
+    if email and password:
+        try:
+            # Connect to your FastAPI backend
+            response = requests.post(
+                "http://127.0.0.1:8000/login",
+                json={"email": email, "password": password}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                st.session_state.logged_in = True
+                # Store the MongoDB user_id in session state to use later for uploads
+                st.session_state.user_id = data.get("user_id") 
+                st.session_state.email = email
+                
+                # Persist login in URL
+                st.query_params["auth"] = "true"
+                
+                st.success("Login successful 🎉")
+                st.switch_page("app.py")
+            else:
+                # Show the exact error from FastAPI (e.g. "Invalid credentials")
+                st.error(response.json().get("detail", "Login failed"))
+                
+        except requests.exceptions.ConnectionError:
+            st.error("Connection error. Make sure your FastAPI backend is running!")
     else:
-        st.error("Invalid credentials")
+        st.warning("Please enter both email and password.")
 
 st.markdown("---")
 st.write("Don't have an account?")
