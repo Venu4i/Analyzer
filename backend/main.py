@@ -30,7 +30,7 @@ from pymongo import MongoClient
 # 1. Connect to MongoDB
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
 client = MongoClient(MONGO_URI)
-db = client["research_assistant"]
+db = client["Analyzer"]
 summaries_collection = db["summaries"]
 
 def save_summary(filename, summary_text):
