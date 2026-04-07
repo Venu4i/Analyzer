@@ -36,7 +36,7 @@ def get_cited_answer(query: str, doc_name: str, user_id: str):
 
         # Vector Search
         query_vector = model.encode([query]).astype('float32')
-        D, I = index.search(query_vector, k=3) # Top 3 chunks
+        D, I = index.search(query_vector, k=5) # Top 3 chunks
 
         results = [chunks[i] for i in I[0] if i < len(chunks)]
         if not results:
@@ -46,15 +46,20 @@ def get_cited_answer(query: str, doc_name: str, user_id: str):
         context = "\n\n".join([r["chunk_text"] for r in results])
 
         prompt = f"""
-        You are an expert academic research assistant.
-        Answer the question based ONLY on the context below. 
-        If the answer is not in the context, say "I cannot find the answer in the provided text."
+        You are an expert academic research assistant. 
+        Your goal is to answer the user's question accurately using ONLY the provided Context.
         
         Context:
         {context}
 
         Question:
         {query}
+
+        Instructions:
+        1. Read the Context carefully. Look for direct answers as well as related synonyms (e.g., if asked about "data collection", look for words like "surveyed", "gathered", "interviews", "dataset", "methodology").
+        2. If the Context contains the information, provide a detailed and clear answer.
+        3. If the Context contains partial information, provide what you can and explicitly state what details are missing from the text.
+        4. If the answer is completely absent from the Context, reply exactly: "I cannot find the answer in the provided text." Do NOT guess or use outside knowledge.
         """
 
         response = llm_qa.generate_content(prompt)
