@@ -1,113 +1,108 @@
-# 📑 Analyzer: AI-Powered Research Insight Engine
+📑 PDF Analyzer: Multi-Tenant AI Research Assistant
+PDF Analyzer is a production-grade, full-stack RAG (Retrieval-Augmented Generation) system engineered for deep-dive analysis of academic research papers. Upgraded from a standard vector-search app into a multi-tenant SaaS architecture, it features a novel Dual-Pipeline RAG design to solve the standard limitations of document chat: providing both instant holistic summaries and highly precise, cited answers in isolated user workspaces.
 
-**Analyzer** is a production-grade RAG (Retrieval-Augmented Generation) system designed specifically for deep-dive analysis of academic research papers. Unlike generic PDF chat apps, **Analyzer** understands document structure—tracking section headers and page numbers to provide precise, grounded citations for every claim it makes.
+🚀 Key Features
+🔐 Secure Multi-Tenancy: Built-in Authentication (Signup/Login) backed by MongoDB. Every user gets a completely isolated vector workspace and summary database.
 
----
+⚡ Dual-Pipeline Architecture: * The "Shotgun" (Global Summary): Processes the entire document upon upload to generate and cache a comprehensive overview instantly.
 
-## 🚀 Key Features
-* **Structure-Aware Parsing:** Automatically detects sections (Abstract, Methodology, etc.) and preserves page numbers using font-size analysis.
-* **Grounded Citations:** Every answer includes exact source tags like `Page 4, Section: Methodology`.
-* **Multi-Column Support:** Uses spatial sorting logic to handle complex 2-column IEEE/ACM/arXiv paper layouts accurately.
-* **Gemini-Powered Intelligence:** Leverages **Gemini 2.5 Flash** for high-speed, long-context reasoning.
-* **Vectorized Search:** Powered by **FAISS** for millisecond retrieval of relevant context.
+The "Sniper" (Vector Q&A): Uses FAISS to pull highly specific, chunked contexts for accurate, cited Q&A.
 
----
+🧠 Gemini 2.5 Intelligence: Leverages Gemini 2.5 Flash for blazing-fast massive document synthesis and Gemini 2.5 Pro for complex, context-aware reasoning.
 
-## 🛠 Tech Stack
-| Layer | Technology | Role |
-| :--- | :--- | :--- |
-| **Frontend** | **Streamlit** | Interactive UI & File Uploads |
-| **Backend** | **FastAPI** | RESTful API & System Orchestration |
-| **Parsing** | **PyMuPDF (fitz)** | Deep PDF layout & font-size analysis |
-| **Embeddings** | **HuggingFace** | Local `all-MiniLM-L6-v2` conversion |
-| **Vector DB** | **FAISS** | High-performance local L2-distance indexing |
-| **LLM** | **Google Gemini 2.5 Flash** | Context-aware reasoning & Answer generation |
+🔄 Persistent Sessions: Custom Streamlit URL-parameter state management ensures users stay logged in and maintain their workspace even after hard browser refreshes.
 
----
+🎯 Grounded Citations: Every specific answer includes exact source tags referencing the exact page and chunk of text used to prevent hallucinations.
 
-## 🔄 Workflow
+🛠 Tech Stack
+Layer	Technology	Role
+Frontend	Streamlit	Interactive UI, Session Persistence & File Uploads
+Backend	FastAPI	RESTful API, Auth routing, & System Orchestration
+Database	MongoDB	Source of truth for User Credentials & Global Summaries
+Parsing	PyMuPDF (fitz)	Deep PDF layout & text extraction
+Embeddings	Sentence-Transformers	Local all-MiniLM-L6-v2 vectorization
+Vector DB	FAISS	High-performance local indexing (Isolated per user)
+LLMs	Gemini 2.5 Pro & Flash	Context reasoning (Pro) & Full Document Synthesis (Flash)
+🔄 The Dual-Pipeline Workflow
+Authentication: User signs up/logs in via Streamlit. FastAPI verifies credentials against MongoDB and issues a persistent user_id.
 
-1. **Ingestion:** User uploads a PDF via the Streamlit UI. The backend sanitizes the filename using regex.
-2. **Smart Parsing:** `PyMuPDF` parses the document, identifying headers by font weight/size and sorting text blocks by column coordinates.
-3. **Vectorization:** `RecursiveCharacterTextSplitter` chunks text (1000 chars, 150 overlap). These are embedded into 384-dimensional vectors via `SentenceTransformer`.
-4. **Storage:** Vectors are stored in `.index` files and metadata (text/pages) in `.pkl` files within the `vector_store/` directory.
-5. **Semantic Search:** User queries are embedded and compared against the FAISS index using L2 distance to find the Top-3 matches.
-6. **Synthesis:** Gemini 2.5 Flash processes the prompt (Context + Query) and generates a cited response.
+Ingestion & Routing: User uploads a PDF. The backend sanitizes the file and routes it to an isolated vector_store/{user_id}/ directory.
 
----
+Smart Parsing: PyMuPDF extracts text, which is split into optimal chunks via RecursiveCharacterTextSplitter.
 
-## 💻 Installation & Setup
+The Split Pipeline:
 
-### 1. Clone the Repository
-```bash
-git clone [https://github.com/Venu4i/Analyzer.git]
-cd analyzer
-```
+Path A (Summary): The entire text array is sent to Gemini 2.5 Flash to generate a massive global summary, which is instantly saved to MongoDB linked to the user_id.
 
-### 2. Setting up virtual environment
-# Create the environment
-```bash
-python -m venv venv/
-```
+Path B (Vectors): Text chunks are embedded into 384-dimensional vectors using sentence-transformers and saved to the user's localized FAISS index.
 
-# Activate on Windows
-```bash
+Interactive Analysis: * User can click "Fetch Summary" to instantly read the cached overview from MongoDB (Zero wait time).
+
+User can ask specific questions in chat: Queries are embedded, matched in FAISS, and answered by Gemini 2.5 Pro with exact citations.
+
+💻 Installation & Setup
+1. Clone the Repository
+Bash
+git clone https://github.com/your-username/pdf-analyzer.git
+cd pdf-analyzer
+2. Set up the Virtual Environment
+Create the environment:
+
+Bash
+python -m venv venv
+Activate on Windows:
+
+Bash
 venv\Scripts\activate
-```
+Activate on Mac/Linux:
 
-# Activate on Mac/Linux
-```bash
+Bash
 source venv/bin/activate
-```
-
-### 3.Install Dependencies
-```bash
+3. Install Dependencies
+Bash
 pip install -r requirements.txt
-```
+4. Configure Environment Variables
+Create a .env file in the root directory. You will need a Google Gemini API key and a MongoDB connection string (Local or Atlas).
 
-### 4. Configure Environment Variables
-Create a .env file in the root directory:
-```bash
-GEMINI_API_KEY=your_api_key_here
-#FASTAPI_URL=http://localhost:8000
+Code snippet
+GOOGLE_API_KEY=your_gemini_api_key_here
+MONGO_URI=mongodb://localhost:27017/  # Or your MongoDB Atlas SRV string
 PORT=8000
-```
+5. Run the Application (Requires Two Terminals)
+Terminal 1: Start the Backend (FastAPI)
 
-### 5. Run the Engine
-Start the Backend (Terminal 1):
+Bash
+python -m uvicorn main:app --reload --port 8000
+Terminal 2: Start the Frontend (Streamlit)
 
-```bash
-uvicorn app.main:app --reload --port 8000
-```
-### 6.Start the Frontend (Terminal 2):
-```bash
-cd frontend
+Bash
 python -m streamlit run app.py
-```
+📦 Requirements (requirements.txt)
+Ensure your requirements.txt includes the following verified versions to avoid dependency conflicts:
 
-### 📄 Bonus: Your `requirements.txt` file
-Since you are in VS Code, create a file named `requirements.txt` in your root folder and paste this in. These versions are verified to work together without "dependency hell."
-
-```text
+Plaintext
 # Web Framework
-fastapi==0.109.0
-uvicorn==0.27.0
-python-multipart==0.0.6
+fastapi
+uvicorn
+python-multipart
 
-# PDF Processing
-pymupdf==1.23.8
-langchain-text-splitters>=1.1.1
+# Database
+pymongo
+
+# PDF Processing & Chunking
+pymupdf
+langchain-text-splitters
 
 # AI & Vector Database
 google-generativeai
 sentence-transformers
-faiss-cpu==1.7.4
+faiss-cpu
 numpy
 
 # Environment & Utilities
-python-dotenv==1.0.0
-requests==2.31.0
+python-dotenv
+requests
+pydantic[email]
 
 # Frontend
-streamlit==1.30.0
-```
+streamlit
